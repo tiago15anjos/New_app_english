@@ -1,0 +1,866 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>VocabuLearn – HTML+JS (no-build) v3</title>
+  <style>
+    :root{--indigo:#4f46e5;--bg:#f8fafc;--text:#0f172a;--muted:#64748b;--border:#e2e8f0}
+    *{box-sizing:border-box} body{margin:0;font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,'Helvetica Neue',Arial}
+    .app{min-height:100vh;background:linear-gradient(#eef2ff,#ffffff)} .container{max-width:1000px;margin:0 auto;padding:24px}
+    .top{position:sticky;top:0;background:rgba(255,255,255,.75);backdrop-filter:saturate(150%) blur(6px);border-bottom:1px solid var(--border)}
+    .brand{font-weight:900;font-size:20px;letter-spacing:.2px}.brand i{color:var(--indigo)}
+    .row{display:flex;gap:8px;align-items:center}
+    .spacer{flex:1}
+    button{appearance:none;border:0;border-radius:12px;padding:8px 12px;font-weight:600;cursor:pointer;background:#fff;border:1px solid var(--border);color:#111}
+    button.primary{background:var(--indigo);color:#fff;border-color:var(--indigo)}
+    button.ghost{background:#fff}
+    button.danger{background:#ef4444;color:#fff;border-color:#ef4444}
+    button.success{background:#10b981;color:#fff;border-color:#10b981}
+    button:disabled{opacity:.6;cursor:not-allowed}
+    input,select,textarea{border:1px solid var(--border);border-radius:12px;padding:8px 10px;width:100%}
+    .card{background:#fff;border:1px solid var(--border);border-radius:24px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,.04)}
+    .grid{display:grid;gap:16px}
+    @media(min-width:800px){.grid-2{grid-template-columns:1fr 1fr}}
+    table{border-collapse:collapse;width:100%}th,td{padding:8px 10px;border-top:1px solid var(--border);text-align:left} thead th{background:#f8fafc}
+    .muted{color:var(--muted)} .chip{display:inline-block;border:1px solid var(--border);border-radius:999px;padding:2px 8px;margin-right:4px;font-size:12px}
+    .progress{height:8px;background:#e5e7eb;border-radius:999px;overflow:hidden}
+    .bar{height:100%;background:var(--indigo);width:0}
+    .hidden{display:none}
+    .tile{border:1px solid var(--border);border-radius:12px;background:#fff;padding:10px;cursor:pointer;user-select:none;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+    .tile:hover{outline:2px solid rgba(79,70,229,.15)}
+    .tile.selected{border-color:var(--indigo);box-shadow:0 0 0 2px rgba(79,70,229,.15) inset}
+    .tile.matched{background:#dcfce7;border-color:#10b981;color:#065f46}
+    .tile.wrong{background:#fee2e2;border-color:#ef4444}
+  </style>
+</head>
+<body class="app">
+  <div class="top">
+    <div class="container row" style="padding:10px 24px;gap:12px">
+      <div class="brand">Vocabu<i>Learn</i></div>
+      <div class="row" id="nav">
+        <button data-view="study" class="ghost">Estudar</button>
+        <button data-view="bank" class="ghost">Banco</button>
+        <button data-view="verbs" class="ghost">Verbos</button>
+        <button data-view="idioms" class="ghost">Idioms</button>
+        <button data-view="games" class="ghost">Jogos</button>
+        <button data-view="io" class="ghost">Importar/Exportar</button>
+      </div>
+      <div class="spacer"></div>
+      <!-- Auth UI -->
+      <div id="auth" class="row" style="gap:8px">
+        <span id="user-label" class="muted"></span>
+        <button id="btn-login" class="ghost">Entrar</button>
+        <button id="btn-logout" class="ghost hidden">Sair</button>
+      </div>
+      <div class="muted" style="font-size:12px">Atalhos: Espaço (revelar), 1–4 (nota), P (ouvir)</div>
+    </div>
+  </div>
+
+  <main class="container grid" style="padding-top:18px">
+    <!-- STUDY -->
+    <section id="view-study" class="grid">
+      <div class="row" style="gap:10px">
+        <label class="row" style="gap:6px">Sessão
+          <select id="session-size">
+            <option>5</option><option selected>10</option><option>15</option><option>20</option><option>30</option>
+          </select></label>
+        <label class="row" style="gap:6px">Fonte
+          <select id="font-scale">
+            <option value="100">100%</option><option value="112" selected>112%</option><option value="125">125%</option><option value="150">150%</option>
+          </select></label>
+        <!-- Seletor de Modo -->
+        <label class="row" style="gap:6px">Modo
+          <select id="study-mode">
+            <option value="vocab" selected>Vocabulário</option>
+            <option value="verbs">Verbos</option>
+            <option value="idioms">Idioms</option>
+          </select>
+        </label>
+        <div class="spacer"></div>
+        <span class="muted">Devidos: <span id="due-count">0</span></span>
+      </div>
+
+      <div class="card" id="study-card" style="font-size:112%">
+        <div id="study-empty" class="muted">Carregue palavras no Banco para começar.</div>
+        <div id="study-inner" class="hidden">
+          <div class="row" style="align-items:flex-start;gap:10px">
+            <div id="study-term" style="font-size:36px;font-weight:900;letter-spacing:.2px">term</div>
+            <div id="study-ipa" class="muted"></div>
+            <div class="spacer"></div>
+            <button id="btn-speak" class="ghost" title="Ouvir (P)">🔊</button>
+          </div>
+          <div id="study-hidden" style="margin-top:14px">
+            <button id="btn-reveal" class="primary">Revelar</button>
+          </div>
+          <div id="study-revealed" class="hidden" style="margin-top:14px">
+            <div id="study-translation" style="font-size:18px"></div>
+            <div id="study-definition"></div>
+            <div id="study-example" style="font-style:italic"></div>
+            <div id="study-tags" style="margin-top:6px"></div>
+            <div class="row" style="gap:8px;margin-top:10px">
+              <button data-rate="0" class="danger">1 • Again</button>
+              <button data-rate="1" class="ghost">2 • Hard</button>
+              <button data-rate="2" class="primary">3 • Good</button>
+              <button data-rate="3" class="ghost">4 • Easy</button>
+              <div class="spacer"></div>
+              <button id="btn-next" class="ghost">Próximo ▶</button>
+            </div>
+          </div>
+          <div class="progress" style="margin-top:12px"><div class="bar" id="progress-bar"></div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- BANK -->
+    <section id="view-bank" class="grid hidden">
+      <div class="card">
+        <h3>Adicionar / Editar palavra</h3>
+        <div class="grid grid-2">
+          <label>Palavra (EN)
+            <input id="f-term" placeholder="sustainability" />
+          </label>
+          <label>Tradução (PT)
+            <input id="f-translation" placeholder="sustentabilidade" />
+          </label>
+        </div>
+        <label>IPA
+          <input id="f-ipa" placeholder="/səˌsteɪnəˈbɪlɪti/" />
+        </label>
+        <label>Definição
+          <textarea id="f-definition" rows="2" placeholder="ability to maintain without depleting resources"></textarea>
+        </label>
+        <label>Exemplo
+          <textarea id="f-example" rows="2" placeholder="Sustainability policies can reduce emissions."></textarea>
+        </label>
+        <label>Tags (vírgula)
+          <input id="f-tags" placeholder="academia, ecologia" />
+        </label>
+        <div class="row" style="gap:8px">
+          <button id="btn-speak-form" class="ghost">🔊 Ouvir</button>
+          <div class="spacer"></div>
+          <button id="btn-save" class="primary">Salvar</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="row" style="gap:8px;align-items:center;margin-bottom:8px">
+          <input id="q" placeholder="Buscar…" style="max-width:260px" />
+          <label class="row" style="gap:6px">Tag
+            <select id="tag"></select>
+          </label>
+          <div class="spacer"></div>
+          <span class="muted" id="count"></span>
+        </div>
+        <div style="overflow:auto">
+          <table id="table-bank">
+            <thead><tr>
+              <th>Palavra</th><th>Tradução</th><th>Exemplo</th><th>Tags</th><th>Próx. revisão</th><th>Ações</th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- VERBS -->
+    <section id="view-verbs" class="grid hidden">
+      <div class="card">
+        <h3>Estudar Verbos Irregulares</h3>
+        <div id="verbs-study" class="muted">Adicione verbos para estudar.</div>
+      </div>
+      <div class="card">
+        <h3>Adicionar verbo</h3>
+        <div class="grid grid-2">
+          <label>Base <input id="v-base" placeholder="go" /></label>
+          <label>Past <input id="v-past" placeholder="went" /></label>
+        </div>
+        <div class="grid grid-2">
+          <label>Participle <input id="v-part" placeholder="gone" /></label>
+          <label>Significado <input id="v-meaning" placeholder="ir" /></label>
+        </div>
+        <label>Exemplo <input id="v-example" placeholder="She has gone home." /></label>
+        <div class="row" style="justify-content:flex-end"><button id="btn-add-verb" class="primary">Adicionar</button></div>
+        <div style="overflow:auto;margin-top:10px">
+          <table id="table-verbs"><thead><tr><th>Base</th><th>Past</th><th>Participle</th><th>Significado</th><th>Exemplo</th><th>Ações</th></tr></thead><tbody></tbody></table>
+        </div>
+      </div>
+    </section>
+
+    <!-- IDIOMS -->
+    <section id="view-idioms" class="grid hidden">
+      <div class="card">
+        <h3>Estudar Idiomatic Expressions</h3>
+        <div id="idioms-study" class="muted">Adicione idioms para estudar.</div>
+      </div>
+      <div class="card">
+        <h3>Adicionar expressão</h3>
+        <label>Expressão <input id="i-phrase" placeholder="break the ice" /></label>
+        <label>Significado <input id="i-meaning" placeholder="quebrar o gelo" /></label>
+        <label>Exemplo <input id="i-example" placeholder="He told a joke to break the ice." /></label>
+        <div class="row" style="justify-content:flex-end"><button id="btn-add-idiom" class="primary">Adicionar</button></div>
+        <div style="overflow:auto;margin-top:10px">
+          <table id="table-idioms"><thead><tr><th>Expressão</th><th>Significado</th><th>Exemplo</th><th>Ações</th></tr></thead><tbody></tbody></table>
+        </div>
+      </div>
+    </section>
+
+    <!-- GAMES -->
+    <section id="view-games" class="grid hidden">
+      <div class="card">
+        <h3>Jogo de Associação (EN ↔ PT)</h3>
+        <div class="row" style="gap:10px;align-items:center;margin-bottom:8px">
+          <label class="row" style="gap:6px">Pares
+            <select id="g-count"><option>5</option><option selected>8</option><option>10</option><option>12</option></select>
+          </label>
+          <label class="row" style="gap:6px">Tag
+            <select id="g-tag"><option value="">Todas</option></select>
+          </label>
+          <label class="row" style="gap:6px">Duração
+            <select id="g-timer"><option value="45">45s</option><option value="60" selected>60s</option><option value="90">90s</option><option value="120">120s</option></select>
+          </label>
+          <label class="row" style="gap:6px">Vidas
+            <select id="g-lives"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option></select>
+          </label>
+          <label class="row" style="gap:6px"><input type="checkbox" id="g-speak" checked /> Som ao clicar</label>
+          <div class="spacer"></div>
+          <button id="g-start" class="primary">Iniciar</button>
+          <button id="g-reset" class="ghost">Reiniciar</button>
+        </div>
+        <div id="g-status" class="muted" style="margin-bottom:8px"></div>
+        <div id="g-board" class="grid" style="grid-template-columns:1fr 1fr; gap: 12px">
+          <div>
+            <h4>Inglês</h4>
+            <div id="g-col-en" class="grid" style="grid-template-columns:1fr; gap:8px"></div>
+          </div>
+          <div>
+            <h4>Português</h4>
+            <div id="g-col-pt" class="grid" style="grid-template-columns:1fr; gap:8px"></div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Placar</h3>
+        <div class="row" style="gap:8px; margin-bottom:6px">
+          <button id="g-clear" class="ghost">Limpar placar</button>
+        </div>
+        <div style="overflow:auto">
+          <table id="g-score" style="width:100%">
+            <thead><tr><th>Data</th><th>Tag</th><th>Pares</th><th>Tempo</th><th>Erros</th><th>Vidas</th><th>Resultado</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- IMPORT/EXPORT -->
+    <section id="view-io" class="grid hidden">
+      <div class="card">
+        <h3>Importar</h3>
+        <div class="grid grid-2">
+          <label>CSV Vocabulário <input type="file" id="imp-vocab" accept=".csv" /></label>
+          <label>JSON Verbos <input type="file" id="imp-verbs" accept=".json" /></label>
+          <label>JSON Idioms <input type="file" id="imp-idioms" accept=".json" /></label>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Exportar</h3>
+        <div class="row" style="gap:8px">
+          <button id="exp-vocab" class="ghost">CSV Vocabulário</button>
+          <button id="exp-verbs" class="ghost">JSON Verbos</button>
+          <button id="exp-idioms" class="ghost">JSON Idioms</button>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Pacotes iniciais</h3>
+        <p class="muted">Clique para carregar sementes rápidas no banco local.</p>
+        <div class="row" style="gap:8px">
+          <button id="seed-vocab" class="success">Carregar Vocabulário (seed)</button>
+          <button id="seed-verbs" class="success">Carregar Verbos (seed)</button>
+          <button id="seed-idioms" class="success">Carregar Idioms (seed)</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+<!-- =====================  SCRIPT PRINCIPAL  ===================== -->
+<script>
+// =============== Utils ===============
+const now = ()=> Date.now();
+const daysFromNow = d => now() + d*24*60*60*1000;
+const uid = ()=> Math.random().toString(36).slice(2)+Date.now().toString(36);
+function speak(text, lang='en-US'){ if(!('speechSynthesis' in window)) return; const u=new SpeechSynthesisUtterance(text); u.lang=lang; window.speechSynthesis.cancel(); window.speechSynthesis.speak(u); }
+
+function schedule(item, ratingIndex){
+  let ease = item.ease ?? 2.5; let interval = item.interval ?? 0; let repetitions = item.repetitions ?? 0;
+  if (ratingIndex===0){ repetitions=0; interval=0.5; ease=Math.max(1.3,ease-0.2); }
+  else if (ratingIndex===1){ interval=Math.max(1, interval*0.85); ease=Math.max(1.3, ease-0.15); }
+  else if (ratingIndex===2){ repetitions+=1; if (repetitions===1) interval=1; else if (repetitions===2) interval=3; else interval=Math.max(3, Math.round(interval*ease)); ease=Math.min(2.8, ease+0.05); }
+  else if (ratingIndex===3){ repetitions+=1; if (repetitions<=1) interval=2; else interval=Math.max(4, Math.round(interval*(ease+0.15))); ease=Math.min(3.0, ease+0.1); }
+  return { ...item, ease:Number(ease.toFixed(2)), interval, repetitions, lastResult:['again','hard','good','easy'][ratingIndex], nextReview: daysFromNow(interval) };
+}
+
+// CSV helpers
+function needsQuote(s){ return s.includes('"') || s.includes(',') || s.includes('\n'); }
+function csvEscape(s){ return '"'+s.replaceAll('"','""')+'"'; }
+function vocabToCSV(items){
+  const head = 'term,translation,definition,example,ipa,tags';
+  const rows = items.map(i=>{
+    const fields = [i.term, i.translation||'', i.definition||'', i.example||'', i.ipa||'', (i.tags||[]).join('|')].map(x=>x==null?'':String(x));
+    const safe = fields.map(x=> needsQuote(x) ? csvEscape(x) : x);
+    return safe.join(',');
+  });
+  return [head, ...rows].join('\n');
+}
+function parseCSVLine(line){
+  const out=[]; let cur=''; let q=false; for(let i=0;i<line.length;i++){ const c=line[i]; if(c==='"'){ if(q && line[i+1]==='"'){ cur+='"'; i++; } else { q=!q; } } else if(c===',' && !q){ out.push(cur); cur=''; } else { cur+=c; } } out.push(cur); return out;
+}
+function csvToVocab(text){
+  const lines = text.replace(/\r/g,'').split('\n').filter(Boolean); if(!lines.length) return [];
+  const header = lines[0].split(',').map(h=>h.trim().toLowerCase()); const idx=k=> header.indexOf(k);
+  const arr=[]; for(let i=1;i<lines.length;i++){ const row=parseCSVLine(lines[i]); const term=row[idx('term')]||''; if(!term) continue; arr.push({ id:uid(), term, translation:row[idx('translation')]||undefined, definition:row[idx('definition')]||undefined, example:row[idx('example')]||undefined, ipa:row[idx('ipa')]||undefined, tags:(row[idx('tags')]||'').split('|').map(t=>t.trim()).filter(Boolean), createdAt:now(), nextReview:now(), interval:0, ease:2.5, repetitions:0 }); }
+  return arr;
+}
+function download(filename, content, type='text/plain'){ const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([content],{type})); a.download=filename; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href), 500); }
+
+// =============== State (localStorage) ===============
+const KEY_V='vocabul-learn-items'; const KEY_R='vocabul-learn-verbs'; const KEY_I='vocabul-learn-idioms'; const KEY_SCORES='vocabul-learn-scores';
+const store={ read:k=>{ try{return JSON.parse(localStorage.getItem(k)||'[]')}catch{ return [] } }, write:(k,arr)=> localStorage.setItem(k, JSON.stringify(arr)) };
+let items = store.read(KEY_V); let verbs = store.read(KEY_R); let idioms = store.read(KEY_I); let scores = store.read(KEY_SCORES);
+
+// Seeds if empty
+if (!items.length){ items = [
+  {id:uid(), term:'sustainability', translation:'sustentabilidade', ipa:'/səˌsteɪnəˈbɪlɪti/', definition:'ability to maintain without depleting resources', example:'Sustainability policies can reduce emissions.', tags:['core','academia'], createdAt:now(), nextReview:now(), interval:0, ease:2.5, repetitions:0},
+  {id:uid(), term:'articulate', translation:'articular; eloquente', ipa:'/ɑːrˈtɪkjʊlət/', definition:'speak fluently and coherently', example:'She is an articulate speaker on science policy.', tags:['speaking'], createdAt:now(), nextReview:now(), interval:0, ease:2.5, repetitions:0},
+  {id:uid(), term:'interconnectedness', translation:'interconectividade', definition:'state of being connected', example:'The interconnectedness of ecosystems is crucial.', tags:['ecology'], createdAt:now(), nextReview:now(), interval:0, ease:2.5, repetitions:0}
+]; store.write(KEY_V, items); }
+if (!verbs.length){ verbs = [
+  {id:uid(), base:'be', past:'was/were', participle:'been', meaning:'ser/estar', example:'I have been to Canada.'},
+  {id:uid(), base:'begin', past:'began', participle:'begun', meaning:'começar', example:'The class began at nine.'},
+  {id:uid(), base:'go', past:'went', participle:'gone', meaning:'ir', example:'They have gone home.'},
+]; store.write(KEY_R, verbs); }
+if (!idioms.length){ idioms = [
+  {id:uid(), phrase:'break the ice', meaning:'quebrar o gelo (iniciar conversa)', example:'He told a joke to break the ice.'},
+  {id:uid(), phrase:'piece of cake', meaning:'muito fácil', example:'That exam was a piece of cake.'},
+  {id:uid(), phrase:'under the weather', meaning:'indisposto', example:"I'm feeling under the weather today."},
+]; store.write(KEY_I, idioms); }
+
+// =============== Navigation ===============
+const nav = document.getElementById('nav');
+const views = ['study','bank','verbs','idioms','games','io'];
+function show(view){
+  views.forEach(v=>{
+    document.getElementById('view-'+v).classList.toggle('hidden', v!==view);
+    nav.querySelector(`[data-view="${v}"]`).classList.toggle('primary', v===view);
+    nav.querySelector(`[data-view="${v}"]`).classList.toggle('ghost', v!==view);
+  });
+}
+nav.addEventListener('click', e=>{
+  const b=e.target.closest('button[data-view]'); if(!b) return;
+  if(b.dataset.view!=='games' && window.gameInt){ clearInterval(gameInt); gameInt=null; }
+  show(b.dataset.view);
+  if(b.dataset.view==='bank') renderBank();
+  if(b.dataset.view==='verbs') renderVerbs();
+  if(b.dataset.view==='idioms') renderIdioms();
+  if(b.dataset.view==='games') renderGame();
+  if(b.dataset.view==='io') renderIO();
+  if(b.dataset.view==='study') renderStudy();
+});
+show('study');
+
+// =============== Study (com Modo) ===============
+let pool=[], index=0, revealed=false;
+let chunkSize=Number(document.getElementById('session-size').value);
+let fontScale=Number(document.getElementById('font-scale').value);
+let studyMode = document.getElementById('study-mode').value;
+
+const elDue=document.getElementById('due-count');
+const elCard=document.getElementById('study-card');
+const elInner=document.getElementById('study-inner');
+const elEmpty=document.getElementById('study-empty');
+const elTerm=document.getElementById('study-term');
+const elIpa=document.getElementById('study-ipa');
+const elHidden=document.getElementById('study-hidden');
+const elRev=document.getElementById('study-revealed');
+const elTrans=document.getElementById('study-translation');
+const elDef=document.getElementById('study-definition');
+const elEx=document.getElementById('study-example');
+const elTags=document.getElementById('study-tags');
+const elBar=document.getElementById('progress-bar');
+
+document.getElementById('session-size').addEventListener('change', e=>{ chunkSize=Number(e.target.value); renderStudy(); });
+document.getElementById('font-scale').addEventListener('change', e=>{ fontScale=Number(e.target.value); elCard.style.fontSize=fontScale+'%'; });
+document.getElementById('study-mode').addEventListener('change', e=>{ studyMode=e.target.value; renderStudy(); });
+
+document.getElementById('btn-speak').addEventListener('click', ()=>{
+  const cur=pool[index]; if(!cur) return;
+  const txt = studyMode==='vocab' ? cur.term : (studyMode==='verbs' ? cur.base : cur.phrase);
+  speak(txt);
+});
+document.getElementById('btn-reveal').addEventListener('click', ()=>{ revealed=true; updateStudyUI(); });
+document.getElementById('btn-next').addEventListener('click', nextStudy);
+document.getElementById('study-revealed').addEventListener('click', e=>{ const b=e.target.closest('button[data-rate]'); if(!b) return; rate(Number(b.dataset.rate)); });
+
+window.addEventListener('keydown', e=>{
+  const visible = views.find(v => !document.getElementById('view-'+v).classList.contains('hidden'));
+  if(visible!=='study') return;
+  const cur=pool[index]; if(!cur) return;
+  if(e.key===' '){ e.preventDefault(); revealed=!revealed; updateStudyUI(); }
+  if(e.key.toLowerCase()==='p'){ const txt = studyMode==='vocab' ? cur.term : (studyMode==='verbs' ? cur.base : cur.phrase); speak(txt); }
+  if(['1','2','3','4'].includes(e.key)){ rate(Number(e.key)-1); }
+  if(e.key==='Enter' || e.key==='ArrowRight'){ nextStudy(); }
+});
+
+function buildDue(){
+  const norm = o => ({
+    ...o,
+    ease:        o.ease ?? 2.5,
+    interval:    o.interval ?? 0,
+    repetitions: o.repetitions ?? 0,
+    nextReview:  o.nextReview ?? now()
+  });
+
+  let source = [];
+  if (studyMode==='vocab') source = items.map(norm);
+  else if (studyMode==='verbs') source = verbs.map(norm);
+  else source = idioms.map(norm);
+
+  const due = source.filter(i => (i.nextReview||0) <= now())
+                    .sort((a,b)=> (a.nextReview||0)-(b.nextReview||0));
+  pool = due.slice(0, chunkSize);
+  index=0; revealed=false;
+  elDue.textContent=String(due.length);
+}
+
+function updateStudyUI(){
+  const cur=pool[index];
+  if(!cur){
+    elInner.classList.add('hidden'); elEmpty.classList.remove('hidden');
+    elEmpty.textContent =
+      (studyMode==='vocab' ? (items.length? (pool.length?'Fim da sessão.':'Nada devido agora.') : 'Carregue palavras no Banco para começar.')
+       : studyMode==='verbs' ? (verbs.length? (pool.length?'Fim da sessão.':'Nada devido agora.') : 'Adicione verbos para estudar.')
+       : (idioms.length? (pool.length?'Fim da sessão.':'Nada devido agora.') : 'Adicione idioms para estudar.')
+      );
+    return;
+  }
+
+  elInner.classList.remove('hidden'); elEmpty.classList.add('hidden');
+
+  if (studyMode==='vocab'){
+    elTerm.textContent = cur.term; elIpa.textContent = cur.ipa || '';
+  } else if (studyMode==='verbs'){
+    elTerm.textContent = cur.base; elIpa.textContent = '';
+  } else {
+    elTerm.textContent = cur.phrase; elIpa.textContent = '';
+  }
+
+  if(!revealed){
+    elHidden.classList.remove('hidden'); elRev.classList.add('hidden');
+  } else {
+    elHidden.classList.add('hidden'); elRev.classList.remove('hidden');
+
+    if (studyMode==='vocab'){
+      elTrans.innerHTML = cur.translation? '<b>Tradução:</b> '+cur.translation : '';
+      elDef.innerHTML   = cur.definition?  '<b>Definição:</b> '+cur.definition : '';
+      elEx.textContent  = cur.example || '';
+      elTags.innerHTML=''; (cur.tags||[]).forEach(t=>{ const s=document.createElement('span'); s.className='chip'; s.textContent=t; elTags.appendChild(s); });
+    } else if (studyMode==='verbs'){
+      elTrans.innerHTML = `<b>Past:</b> ${cur.past||''} · <b>Participle:</b> ${cur.participle||''}`;
+      elDef.innerHTML   = cur.meaning ? '<b>Significado:</b> '+cur.meaning : '';
+      elEx.textContent  = cur.example || '';
+      elTags.innerHTML  = '';
+    } else { // idioms
+      elTrans.innerHTML = cur.meaning ? '<b>Significado:</b> '+cur.meaning : '';
+      elDef.innerHTML   = '';
+      elEx.textContent  = cur.example || '';
+      elTags.innerHTML  = '';
+    }
+  }
+
+  const pct = pool.length? Math.round((index/pool.length)*100) : 0;
+  elBar.style.width=pct+'%';
+}
+
+function rate(r){
+  const cur=pool[index];
+  const updated = schedule(cur, r);
+
+  if (studyMode==='vocab'){
+    items = items.map(i => i.id===updated.id ? { ...i,
+      ease:updated.ease, interval:updated.interval, repetitions:updated.repetitions, nextReview:updated.nextReview, lastResult:updated.lastResult
+    } : i);
+    store.write(KEY_V, items);
+  } else if (studyMode==='verbs'){
+    verbs = verbs.map(v => v.id===updated.id ? { ...v,
+      ease:updated.ease, interval:updated.interval, repetitions:updated.repetitions, nextReview:updated.nextReview, lastResult:updated.lastResult
+    } : v);
+    store.write(KEY_R, verbs);
+  } else { // idioms
+    idioms = idioms.map(i => i.id===updated.id ? { ...i,
+      ease:updated.ease, interval:updated.interval, repetitions:updated.repetitions, nextReview:updated.nextReview, lastResult:updated.lastResult
+    } : i);
+    store.write(KEY_I, idioms);
+  }
+
+  revealed=false;
+  nextStudy();
+}
+function nextStudy(){ index = Math.min(pool.length-1, index+1); updateStudyUI(); }
+function renderStudy(){ buildDue(); elCard.style.fontSize=fontScale+'%'; updateStudyUI(); }
+renderStudy();
+
+// =============== Bank ===============
+let editingId=null; const $=id=>document.getElementById(id);
+$('btn-speak-form').addEventListener('click', ()=>{ const t=$('f-term').value.trim(); if(t) speak(t); });
+$('btn-save').addEventListener('click', ()=>{
+  const term=$('f-term').value.trim(); if(!term) return;
+  const obj={ id:editingId||uid(), term, translation:$('f-translation').value.trim()||undefined, definition:$('f-definition').value.trim()||undefined, example:$('f-example').value.trim()||undefined, ipa:$('f-ipa').value.trim()||undefined, tags: $('f-tags').value.split(',').map(s=>s.trim().toLowerCase()).filter(Boolean), createdAt: now(), nextReview: now(), interval:0, ease:2.5, repetitions:0 };
+  const i=items.findIndex(x=>x.id===obj.id); if(i>=0) items[i]=obj; else items.unshift(obj);
+  store.write(KEY_V, items); editingId=null;
+  $('f-term').value=''; $('f-translation').value=''; $('f-definition').value=''; $('f-example').value=''; $('f-ipa').value=''; $('f-tags').value='';
+  renderBank(); renderStudy();
+});
+
+function renderBank(){
+  const q=$('q').value?.toLowerCase()||''; const tag=$('tag').value||'';
+  const tags=Array.from(new Set(items.flatMap(i=>i.tags||[])));
+  $('tag').innerHTML='<option value="">Todas</option>'+tags.map(t=>`<option>${t}</option>`).join('');
+  const filtered=items.filter(i=>{
+    const hit=[i.term,i.translation,i.definition,i.example,(i.tags||[]).join(' ')].join('\n').toLowerCase();
+    const okQ=q? hit.includes(q):true; const okTag=tag? (i.tags||[]).includes(tag):true; return okQ && okTag;
+  });
+  $('count').textContent = filtered.length+' itens';
+  const tb=$('table-bank').querySelector('tbody'); tb.innerHTML='';
+  filtered.forEach(i=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td><b>${i.term}</b> ${i.ipa? `<span class="muted">${i.ipa}</span>`:''}</td>
+      <td>${i.translation||''}</td>
+      <td title="${i.example||''}" style="max-width:30ch;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${i.example||''}</td>
+      <td>${(i.tags||[]).map(t=>`<span class='chip'>${t}</span>`).join(' ')}</td>
+      <td>${new Date(i.nextReview||now()).toLocaleDateString()}</td>
+      <td><button data-act='listen' data-id='${i.id}' class='ghost'>🔊</button>
+          <button data-act='edit' data-id='${i.id}' class='ghost'>Editar</button>
+          <button data-act='del' data-id='${i.id}' class='danger'>Excluir</button></td>`;
+    tb.appendChild(tr);
+  });
+}
+$('q').addEventListener('input', renderBank); $('tag').addEventListener('change', renderBank);
+$('table-bank').addEventListener('click', e=>{
+  const b=e.target.closest('button'); if(!b) return; const id=b.dataset.id; const it=items.find(x=>x.id===id); if(!it) return;
+  if(b.dataset.act==='listen'){ speak(it.term); }
+  else if(b.dataset.act==='edit'){ editingId=it.id; $('f-term').value=it.term||''; $('f-translation').value=it.translation||''; $('f-definition').value=it.definition||''; $('f-example').value=it.example||''; $('f-ipa').value=it.ipa||''; $('f-tags').value=(it.tags||[]).join(', '); window.scrollTo({top:0,behavior:'smooth'}); }
+  else if(b.dataset.act==='del'){ if(!confirm('Confirmar exclusão?')) return; items=items.filter(x=>x.id!==id); store.write(KEY_V, items); renderBank(); renderStudy(); }
+});
+
+// =============== Verbs ===============
+function renderVerbs(){
+  const study=document.getElementById('verbs-study'); if(!verbs.length){ study.textContent='Adicione verbos para estudar.'; return; }
+  let idx=0; let revealed=false;
+  study.innerHTML=`<div class='row' style='gap:8px;align-items:flex-start'>
+      <div style='font-size:36px;font-weight:900'>${verbs[0].base}</div>
+      <div class='spacer'></div><button id='v-speak' class='ghost'>🔊</button></div>
+      <div id='v-hidden'><button id='v-reveal' class='primary'>Revelar</button></div>
+      <div id='v-rev' class='hidden'>
+        <div><b>Past:</b> <span id='v-past'></span></div>
+        <div><b>Participle:</b> <span id='v-participle'></span></div>
+        <div id='v-meaning'></div><div id='v-example' style='font-style:italic'></div>
+        <div style='margin-top:8px'><button id='v-next' class='ghost'>Próximo ▶</button></div>
+      </div>`;
+  const elHidden=$('v-hidden'), elRev=$('v-rev');
+  function update(){
+    const cur=verbs[idx];
+    study.querySelector('div[style*="font-size"]').textContent=cur.base;
+    if(!revealed){ elHidden.classList.remove('hidden'); elRev.classList.add('hidden'); }
+    else{ elHidden.classList.add('hidden'); elRev.classList.remove('hidden'); $('v-past').textContent=cur.past; $('v-participle').textContent=cur.participle; $('v-meaning').innerHTML=cur.meaning? '<b>Significado:</b> '+cur.meaning : ''; $('v-example').textContent=cur.example||''; }
+  }
+  study.querySelector('#v-speak').onclick=()=> speak(verbs[idx].base);
+  study.querySelector('#v-reveal').onclick=()=>{ revealed=true; update(); };
+  study.querySelector('#v-next').onclick=()=>{ revealed=false; idx=(idx+1)%verbs.length; update(); };
+  update();
+}
+$('btn-add-verb').addEventListener('click', ()=>{
+  const b=$('v-base').value.trim(), p=$('v-past').value.trim(), t=$('v-part').value.trim(); if(!b||!p||!t) return;
+  const v={id:uid(), base:b, past:p, participle:t, meaning:$('v-meaning').value.trim()||undefined, example:$('v-example').value.trim()||undefined};
+  verbs=[v, ...verbs]; store.write(KEY_R, verbs);
+  $('v-base').value=$('v-past').value=$('v-part').value=$('v-meaning').value=$('v-example').value=''; renderVerbs(); renderIO();
+});
+document.getElementById('table-verbs').addEventListener('click', e=>{
+  const b=e.target.closest('button[data-id]'); if(!b) return; const id=b.dataset.id;
+  verbs=verbs.filter(v=>v.id!==id); store.write(KEY_R, verbs); renderVerbs(); renderIO();
+});
+function renderVerbsTable(){
+  const tb=$('table-verbs').querySelector('tbody'); tb.innerHTML='';
+  verbs.forEach(v=>{ const tr=document.createElement('tr'); tr.innerHTML=`<td><b>${v.base}</b></td><td>${v.past}</td><td>${v.participle}</td><td>${v.meaning||''}</td><td>${v.example||''}</td><td><button class='danger' data-id='${v.id}'>Excluir</button></td>`; tb.appendChild(tr); });
+}
+
+// =============== Idioms ===============
+function renderIdioms(){
+  const study=document.getElementById('idioms-study'); if(!idioms.length){ study.textContent='Adicione idioms para estudar.'; return; }
+  let idx=0; let revealed=false;
+  study.innerHTML=`<div style='font-size:28px;font-weight:900' id='i-phrase'></div>
+    <div id='i-hidden' style='margin-top:8px'><button id='i-reveal' class='primary'>Revelar</button></div>
+    <div id='i-rev' class='hidden'><div id='i-meaning'></div><div id='i-example' style='font-style:italic'></div>
+      <div style='margin-top:8px'><button id='i-next' class='ghost'>Próximo ▶</button></div></div>`;
+  const elHidden=$('i-hidden'), elRev=$('i-rev');
+  function update(){
+    const cur=idioms[idx]; $('i-phrase').textContent=cur.phrase;
+    if(!revealed){ elHidden.classList.remove('hidden'); elRev.classList.add('hidden'); }
+    else{ elHidden.classList.add('hidden'); elRev.classList.remove('hidden'); $('i-meaning').innerHTML='<b>Significado:</b> '+(cur.meaning||''); $('i-example').textContent=cur.example||''; }
+  }
+  $('i-reveal').onclick=()=>{ revealed=true; update(); }; $('i-next').onclick=()=>{ revealed=false; idx=(idx+1)%idioms.length; update(); }; update();
+}
+$('btn-add-idiom').addEventListener('click', ()=>{
+  const phrase=document.querySelector('#view-idioms input#i-phrase').value.trim();
+  const meaning=document.querySelector('#view-idioms input#i-meaning').value.trim();
+  const example=document.querySelector('#view-idioms input#i-example').value.trim();
+  if(!phrase || !meaning) return;
+  const obj={id:uid(), phrase, meaning, example: example||undefined};
+  idioms=[obj, ...idioms]; store.write(KEY_I, idioms);
+  document.querySelector('#view-idioms input#i-phrase').value='';
+  document.querySelector('#view-idioms input#i-meaning').value='';
+  document.querySelector('#view-idioms input#i-example').value='';
+  renderIdioms(); renderIO();
+});
+document.getElementById('table-idioms').addEventListener('click', e=>{
+  const b=e.target.closest('button[data-id]'); if(!b) return; const id=b.dataset.id;
+  idioms=idioms.filter(v=>v.id!==id); store.write(KEY_I, idioms); renderIdioms(); renderIO();
+});
+function renderIdiomsTable(){
+  const tb=$('table-idioms').querySelector('tbody'); tb.innerHTML='';
+  idioms.forEach(i=>{ const tr=document.createElement('tr'); tr.innerHTML=`<td><b>${i.phrase}</b></td><td>${i.meaning||''}</td><td>${i.example||''}</td><td><button class='danger' data-id='${i.id}'>Excluir</button></td>`; tb.appendChild(tr); });
+}
+
+// =============== Games (Tags + Relógio + Vidas + Placar) ===============
+let game={ pairs:[], selEn:null, selPt:null, matched:new Set(), mistakes:0, start:0, duration:60, timeLeft:60, lives:3, tag:'', finished:false };
+let gameInt=null; const g={};
+function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+function buildTagOptions(){ const sel=document.getElementById('g-tag'); if(!sel) return; const allTags = Array.from(new Set(items.flatMap(i=> i.tags||[]))).sort(); sel.innerHTML='<option value="">Todas</option>'+allTags.map(t=>`<option value="${t}">${t}</option>`).join(''); }
+function startGame(){
+  g.countEl=document.getElementById('g-count'); g.colEn=document.getElementById('g-col-en'); g.colPt=document.getElementById('g-col-pt'); g.status=document.getElementById('g-status');
+  const n=Number(g.countEl?.value||8); const tag=(document.getElementById('g-tag')?.value)||''; const secs=Number(document.getElementById('g-timer')?.value||60); const lives=Number(document.getElementById('g-lives')?.value||3);
+  let pool = items.filter(i=>i.term && i.translation && (tag? (i.tags||[]).includes(tag) : true));
+  if(pool.length < 2){ alert('Adicione mais palavras com a tag selecionada.'); return; }
+  if(pool.length < n){ g.status.textContent='Aviso: pares reduzidos para '+pool.length+' pela disponibilidade da tag.'; }
+  const chosen=shuffle(pool.slice()).slice(0, Math.min(n, pool.length)).map(i=>({id:i.id, term:i.term, translation:i.translation}));
+  game={ pairs:chosen, selEn:null, selPt:null, matched:new Set(), mistakes:0, start:Date.now(), duration:secs, timeLeft:secs, lives:lives, tag:tag, finished:false };
+  clearInterval(gameInt); renderBoard(); updateGameStatus(); gameInt=setInterval(tick, 1000);
+}
+function renderBoard(){
+  g.colEn.innerHTML=''; g.colPt.innerHTML='';
+  const eng=shuffle(game.pairs.map(p=>({id:p.id,text:p.term})));
+  const pt=shuffle(game.pairs.map(p=>({id:p.id,text:p.translation})));
+  eng.forEach(e=> addTile(g.colEn,e,'en')); pt.forEach(p=> addTile(g.colPt,p,'pt'));
+}
+function addTile(col,item,side){ const div=document.createElement('div'); div.className='tile'; div.textContent=item.text; div.dataset.id=item.id; div.dataset.side=side; div.tabIndex=0; div.addEventListener('click', onTileClick); col.appendChild(div); }
+function onTileClick(e){
+  if(game.finished) return; const t=e.currentTarget; const id=t.dataset.id; const side=t.dataset.side; if(game.matched.has(id)) return;
+  if(side==='en' && document.getElementById('g-speak')?.checked){ speak(t.textContent); }
+  const wasSel=t.classList.contains('selected'); document.querySelectorAll(`#g-col-${side} .tile.selected`).forEach(x=>x.classList.remove('selected'));
+  if(!wasSel) t.classList.add('selected');
+  if(side==='en') game.selEn = (!wasSel ? id : null); else game.selPt = (!wasSel ? id : null);
+  if(game.selEn && game.selPt) checkMatch();
+}
+function checkMatch(){
+  const idEn=game.selEn, idPt=game.selPt;
+  if(idEn===idPt){ markMatched(idEn); game.selEn=null; game.selPt=null; if(game.matched.size===game.pairs.length){ finishGame('win'); } }
+  else { game.mistakes++; game.lives=Math.max(0, game.lives-1); markWrong(idEn,idPt); if(game.lives<=0){ finishGame('out_of_lives'); } }
+  updateGameStatus();
+}
+function markMatched(id){
+  [...document.querySelectorAll('#g-col-en .tile'), ...document.querySelectorAll('#g-col-pt .tile')].forEach(el=>{ if(el.dataset.id===id){ el.classList.remove('selected'); el.classList.add('matched'); el.style.pointerEvents='none'; } });
+  game.matched.add(id);
+}
+function markWrong(idEn,idPt){
+  const els=[...document.querySelectorAll('#g-col-en .tile'), ...document.querySelectorAll('#g-col-pt .tile')].filter(el=> el.dataset.id===idEn || el.dataset.id===idPt);
+  els.forEach(el=> el.classList.add('wrong'));
+  setTimeout(()=>{ els.forEach(el=> el.classList.remove('wrong','selected')); game.selEn=null; game.selPt=null; }, 600);
+}
+function hearts(n){ return '❤'.repeat(n); }
+function updateGameStatus(){ const done=game.matched.size, total=game.pairs.length; const time=`Tempo: ${Math.max(0, game.timeLeft)}s`; const lives=`Vidas: ${hearts(game.lives)} (${game.lives})`; g.status.textContent = total ? `${time} · ${lives} · Certos: ${done}/${total} · Erros: ${game.mistakes}${game.tag? ' · Tag: '+game.tag:''}` : ''; }
+function tick(){ game.timeLeft-=1; updateGameStatus(); if(game.timeLeft<=0){ finishGame('timeout'); } }
+function renderScores(){
+  const tb=document.querySelector('#g-score tbody'); if(!tb) return; tb.innerHTML='';
+  const rows=scores.slice(0,20).map(s=>{ const d=new Date(s.date); const date=d.toLocaleDateString()+ ' ' + d.toLocaleTimeString().slice(0,5); return `<tr><td>${date}</td><td>${s.tag||'—'}</td><td>${s.pairs}</td><td>${s.time}s</td><td>${s.errors}</td><td>${s.livesStart}</td><td>${s.result}</td></tr>`; });
+  tb.innerHTML = rows.join('');
+}
+function finishGame(result){
+  if(game.finished) return; game.finished=true; clearInterval(gameInt); gameInt=null;
+  document.querySelectorAll('#g-col-en .tile, #g-col-pt .tile').forEach(el=> el.style.pointerEvents='none');
+  const secsUsed = game.duration - Math.max(0, game.timeLeft);
+  const record={ id:uid(), date:new Date().toISOString(), tag: game.tag||'', pairs: game.pairs.length, time: secsUsed, errors: game.mistakes, livesStart: Number(document.getElementById('g-lives')?.value||game.lives), result };
+  scores=[record, ...scores].slice(0,500); store.write(KEY_SCORES, scores); renderScores();
+  const msg = result==='win' ? `✅ Concluído! Tempo: ${secsUsed}s · Erros: ${game.mistakes}` : (result==='timeout' ? `⏰ Tempo esgotado. Pares: ${game.matched.size}/${game.pairs.length}` : `💔 Sem vidas. Pares: ${game.matched.size}/${game.pairs.length}`);
+  g.status.innerHTML = msg + (game.tag? ` · Tag: ${game.tag}` : '');
+}
+function renderGame(){
+  buildTagOptions(); renderScores();
+  if(!document.getElementById('g-start')) return;
+  document.getElementById('g-start').onclick=startGame; document.getElementById('g-reset').onclick=startGame;
+  const btnClear=document.getElementById('g-clear');
+  if(btnClear){ btnClear.onclick=()=>{ if(!confirm('Limpar o placar?')) return; scores=[]; store.write(KEY_SCORES, scores); renderScores(); }; }
+  if(!game.pairs.length){
+    const avail=items.filter(i=>i.translation).length;
+    document.getElementById('g-status').textContent = avail>=2? 'Escolha pares, tag, duração e clique Iniciar.' : 'Adicione pelo menos 2 palavras com tradução no Banco.';
+  }
+}
+
+// =============== Import/Export ===============
+function renderIO(){ /* nada pesado aqui */ }
+
+document.getElementById('imp-vocab').addEventListener('change', e=>{
+  const f=e.target.files?.[0]; if(!f) return; const r=new FileReader();
+  r.onload=()=>{ const arr=csvToVocab(String(r.result||'')); items=[...arr, ...items]; store.write(KEY_V, items); renderBank(); renderStudy(); };
+  r.readAsText(f);
+});
+document.getElementById('imp-verbs').addEventListener('change', e=>{
+  const f=e.target.files?.[0]; if(!f) return; const r=new FileReader();
+  r.onload=()=>{ try{ const data=JSON.parse(String(r.result||''))||[]; const arr=data.map(d=>({id:uid(), base:d.base, past:d.past, participle:d.participle, meaning:d.meaning, example:d.example})); verbs=[...arr, ...verbs]; store.write(KEY_R, verbs); renderVerbs(); }catch{ alert('JSON inválido'); } };
+  r.readAsText(f);
+});
+document.getElementById('imp-idioms').addEventListener('change', e=>{
+  const f=e.target.files?.[0]; if(!f) return; const r=new FileReader();
+  r.onload=()=>{ try{ const data=JSON.parse(String(r.result||''))||[]; const arr=data.map(d=>({id:uid(), phrase:d.phrase, meaning:d.meaning, example:d.example})); idioms=[...arr, ...idioms]; store.write(KEY_I, idioms); renderIdioms(); }catch{ alert('JSON inválido'); } };
+  r.readAsText(f);
+});
+document.getElementById('exp-vocab').addEventListener('click', ()=> download('vocab_export.csv', vocabToCSV(items), 'text/csv'));
+document.getElementById('exp-verbs').addEventListener('click', ()=> download('verbs_export.json', JSON.stringify(verbs,null,2), 'application/json'));
+document.getElementById('exp-idioms').addEventListener('click', ()=> download('idioms_export.json', JSON.stringify(idioms,null,2), 'application/json'));
+
+document.getElementById('seed-vocab').addEventListener('click', ()=>{
+  const seeds = [
+    { term:'evidence', translation:'evidência', definition:'facts or information indicating truth', example:'We used strong evidence.', tags:['academia'] },
+    { term:'framework', translation:'estrutura; arcabouço', definition:'basic structure underlying a system', example:'We propose a CTS framework.', tags:['academia'] },
+  ];
+  const arr=seeds.map(s=>({ id:uid(), term:s.term, translation:s.translation, definition:s.definition, example:s.example, ipa:s.ipa||'', tags:s.tags||[], createdAt:now(), nextReview:now(), interval:0, ease:2.5, repetitions:0 }));
+  items=[...arr, ...items]; store.write(KEY_V, items); renderBank(); renderStudy();
+});
+document.getElementById('seed-verbs').addEventListener('click', ()=>{
+  const seeds=[{base:'take',past:'took',participle:'taken',meaning:'pegar/levar',example:'He has taken notes.'},{base:'write',past:'wrote',participle:'written',meaning:'escrever',example:'She has written a paper.'}].map(v=>({id:uid(),...v}));
+  verbs=[...seeds,...verbs]; store.write(KEY_R, verbs); renderVerbs();
+});
+document.getElementById('seed-idioms').addEventListener('click', ()=>{
+  const seeds=[{phrase:'rule of thumb',meaning:'regra prática',example:'A rule of thumb is to review daily.'},{phrase:'sleep on it',meaning:'pensar melhor',example:'Sleep on it before deciding.'}].map(i=>({id:uid(),...i}));
+  idioms=[...seeds,...idioms]; store.write(KEY_I, idioms); renderIdioms();
+});
+
+// Initial tables
+renderBank(); renderVerbsTable(); renderIdiomsTable();
+</script>
+
+<!-- =====================  PONTE PARA O FIREBASE  ===================== -->
+<script>
+  window.store = store;
+  window.__applyVocab  = (arr)=>{ items = arr; renderBank(); renderStudy(); renderGame(); };
+  window.__applyVerbs  = (arr)=>{ verbs = arr; renderVerbsTable(); };
+  window.__applyIdioms = (arr)=>{ idioms = arr; renderIdiomsTable(); };
+  window.__applyScores = (arr)=>{ scores = arr; };
+</script>
+
+<!-- =====================  FIREBASE (Auth + Firestore)  ===================== -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  import { getFirestore, collection, doc, getDocs, onSnapshot, writeBatch, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyBKkKvPZZy9fNpbOfWehxdPL8QuxFTjAO4",
+    authDomain: "vocabul-learn.firebaseapp.com",
+    projectId: "vocabul-learn",
+    storageBucket: "vocabul-learn.firebasestorage.app",
+    messagingSenderId: "223434417982",
+    appId: "1:223434417982:web:04c3d15cef7309c9346e6f",
+    measurementId: "G-4XQ049R369"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db   = getFirestore(app);
+  enableIndexedDbPersistence(db).catch(()=>{}); // cache offline
+
+  const userLabel = document.getElementById("user-label");
+  const btnLogin  = document.getElementById("btn-login");
+  const btnLogout = document.getElementById("btn-logout");
+  const provider  = new GoogleAuthProvider();
+  btnLogin.onclick  = () => signInWithPopup(auth, provider);
+  btnLogout.onclick = () => signOut(auth);
+
+  const KEY_V="vocabul-learn-items", KEY_R="vocabul-learn-verbs",
+        KEY_I="vocabul-learn-idioms", KEY_SCORES="vocabul-learn-scores";
+  const MAP = { [KEY_V]:"vocab", [KEY_R]:"verbs", [KEY_I]:"idioms", [KEY_SCORES]:"scores" };
+
+  const store = window.store;
+  const oldWrite = store.write.bind(store);
+  store.write = async (key, arr) => {
+    oldWrite(key, arr);
+    const u = auth.currentUser; if (!u) return;
+    await replaceCollectionInCloud(u.uid, key, arr);
+  };
+
+  async function replaceCollectionInCloud(uid, key, arr){
+    const path = ['users', uid, MAP[key]];
+    const collRef = collection(db, ...path);
+    const snap = await getDocs(collRef);
+    const batch = writeBatch(db);
+    snap.docs.forEach(d => batch.delete(d.ref));
+    arr.forEach(obj => {
+      const id = obj.id || (crypto.randomUUID?.() || Math.random().toString(36).slice(2));
+      batch.set(doc(db, ...path, id), { ...obj, id });
+    });
+    await batch.commit();
+  }
+
+  async function pullAllFromCloud(){
+    const uid = auth.currentUser?.uid; if (!uid) return;
+
+    async function load(key){
+      const qs = await getDocs(collection(db, 'users', uid, MAP[key]));
+      return qs.docs.map(d => d.data());
+    }
+
+    const [cv, vr, im, sc] = await Promise.all([ load(KEY_V), load(KEY_R), load(KEY_I), load(KEY_SCORES) ]);
+    const cloudTotal = cv.length + vr.length + im.length + sc.length;
+
+    if (cloudTotal === 0){
+      await Promise.all([
+        replaceCollectionInCloud(uid, KEY_V, JSON.parse(localStorage.getItem(KEY_V)||'[]')),
+        replaceCollectionInCloud(uid, KEY_R, JSON.parse(localStorage.getItem(KEY_R)||'[]')),
+        replaceCollectionInCloud(uid, KEY_I, JSON.parse(localStorage.getItem(KEY_I)||'[]')),
+        replaceCollectionInCloud(uid, KEY_SCORES, JSON.parse(localStorage.getItem(KEY_SCORES)||'[]')),
+      ]);
+    } else {
+      window.__applyVocab(cv);   oldWrite(KEY_V, cv);
+      window.__applyVerbs(vr);   oldWrite(KEY_R, vr);
+      window.__applyIdioms(im);  oldWrite(KEY_I, im);
+      window.__applyScores(sc);  oldWrite(KEY_SCORES, sc);
+    }
+
+    function listen(key, apply){
+      const ref = collection(db, 'users', uid, MAP[key]);
+      onSnapshot(ref, (qs) => {
+        const arr = qs.docs.map(d => d.data());
+        oldWrite(key, arr);
+        apply(arr);
+      });
+    }
+    listen(KEY_V, window.__applyVocab);
+    listen(KEY_R, window.__applyVerbs);
+    listen(KEY_I, window.__applyIdioms);
+    listen(KEY_SCORES, window.__applyScores);
+  }
+
+  onAuthStateChanged(auth, async (user)=>{
+    if (user){
+      userLabel.textContent = user.email || user.displayName || user.uid;
+      btnLogin.classList.add('hidden');
+      btnLogout.classList.remove('hidden');
+      await pullAllFromCloud();
+    } else {
+      userLabel.textContent = '';
+      btnLogin.classList.remove('hidden');
+      btnLogout.classList.add('hidden');
+    }
+  });
+</script>
+
+</body>
+</html>
