@@ -901,10 +901,29 @@ renderBank(); renderVerbsTable(); renderIdiomsTable(); renderStudy();
   }
 
   // Funções globais p/ aplicar coleções (usadas acima)
-  window.__applyVocab  = (arr)=>{ window.items = arr; window.store.write(KEY_V, arr); /* espelha */ };
-  window.__applyVerbs  = (arr)=>{ window.verbs = arr; window.store.write(KEY_R, arr); /* espelha */ };
-  window.__applyIdioms = (arr)=>{ window.idioms = arr; window.store.write(KEY_I, arr); /* espelha */ };
-  window.__applyScores = (arr)=>{ window.scores = arr; window.store.write(KEY_SCORES, arr); };
+
+  window.__applyVocab  = (arr)=>{
+    items = arr;                 // atualiza as variáveis usadas pelo app
+    oldWrite(KEY_V, arr);        // espelha no localStorage (sem subir p/ a nuvem)
+    renderBank(); renderStudy(); renderGame();
+  };
+  window.__applyVerbs  = (arr)=>{
+    verbs = arr;
+    oldWrite(KEY_R, arr);
+    renderVerbsTable();
+    if (mode === 'verbs') renderStudy();
+  };
+  window.__applyIdioms = (arr)=>{
+    idioms = arr;
+    oldWrite(KEY_I, arr);
+    renderIdiomsTable();
+    if (mode === 'idioms') renderStudy();
+  };
+  window.__applyScores = (arr)=>{
+    scores = arr;
+    oldWrite(KEY_SCORES, arr);
+    renderGame();
+  };
 
   onAuthStateChanged(auth, async (user)=>{
     const warn = document.getElementById('auth-warning');
