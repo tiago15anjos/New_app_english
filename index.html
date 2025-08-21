@@ -1,4 +1,4 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="pt-br">
 <head>
   <meta charset="utf-8" />
@@ -310,7 +310,6 @@ const now = ()=> Date.now();
 const daysFromNow = d => now() + d*24*60*60*1000;
 const uid = ()=> Math.random().toString(36).slice(2)+Date.now().toString(36);
 
-// Speech helpers
 function speak(text, lang='en-US', cancelFirst=true){
   if(!('speechSynthesis' in window)) return;
   const u = new SpeechSynthesisUtterance(text);
@@ -332,20 +331,19 @@ function speakSeq(list, lang='en-US'){
   next();
 }
 
-// SM-2-lite scheduler (agora usado também por VERBS/IDIOMS)
 function schedule(item, ratingIndex){
   let ease = item.ease ?? 2.5; let interval = item.interval ?? 0; let repetitions = item.repetitions ?? 0;
-  if (ratingIndex===0){ // novamente
+  if (ratingIndex===0){
     repetitions=0; interval=0.5; ease=Math.max(1.3,ease-0.2);
-  } else if (ratingIndex===1){ // difícil
+  } else if (ratingIndex===1){
     interval=Math.max(1, interval*0.85); ease=Math.max(1.3, ease-0.15);
-  } else if (ratingIndex===2){ // bom
+  } else if (ratingIndex===2){
     repetitions+=1;
     if (repetitions===1) interval=1;
     else if (repetitions===2) interval=3;
     else interval=Math.max(3, Math.round(interval*ease));
     ease=Math.min(2.8, ease+0.05);
-  } else if (ratingIndex===3){ // fácil
+  } else if (ratingIndex===3){
     repetitions+=1;
     if (repetitions<=1) interval=2;
     else interval=Math.max(4, Math.round(interval*(ease+0.15)));
@@ -359,7 +357,6 @@ function schedule(item, ratingIndex){
   };
 }
 
-// CSV helpers (vocabulário)
 function needsQuote(s){ return s.includes('"') || s.includes(',') || s.includes('\n'); }
 function csvEscape(s){ return '"'+s.replaceAll('"','""')+'"'; }
 function vocabToCSV(items){
@@ -412,24 +409,24 @@ function csvToVocab(text){
 function download(filename, content, type='text/plain'){ const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([content],{type})); a.download=filename; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href), 500); }
 
 /* ================= State (localStorage) ================= */
-const KEY_V='vocabul-learn-items';   // vocab
-const KEY_R='vocabul-learn-verbs';   // verbs
-const KEY_I='vocabul-learn-idioms';  // idioms
+const KEY_V='vocabul-learn-items';
+const KEY_R='vocabul-learn-verbs';
+const KEY_I='vocabul-learn-idioms';
 const KEY_SCORES='vocabul-learn-scores';
-const store={ read:k=>{ try{return JSON.parse(localStorage.getItem(k)||'[]')}catch{ return [] } }, write:(k,arr)=> localStorage.setItem(k, JSON.stringify(arr)) };
-let items = store.read(KEY_V); let verbs = store.read(KEY_R); let idioms = store.read(KEY_I); let scores = store.read(KEY_SCORES);
+// CORREÇÃO: Anexar o 'store' ao objeto 'window' para que o script do módulo possa acessá-lo.
+window.store={ read:k=>{ try{return JSON.parse(localStorage.getItem(k)||'[]')}catch{ return [] } }, write:(k,arr)=> localStorage.setItem(k, JSON.stringify(arr)) };
+let items = window.store.read(KEY_V); let verbs = window.store.read(KEY_R); let idioms = window.store.read(KEY_I); let scores = window.store.read(KEY_SCORES);
 
-// Seeds mínimos se vazio
 if (!items.length){ items = [
   {id:uid(), term:'sustainability', translation:'sustentabilidade', ipa:'/səˌsteɪnəˈbɪlɪti/', definition:'ability to maintain without depleting resources', example:'Sustainability policies can reduce emissions.', tags:['core','academia'], createdAt:now(), nextReview:now(), interval:0, ease:2.5, repetitions:0, lastResult:'unrated'},
-]; store.write(KEY_V, items); }
+]; window.store.write(KEY_V, items); }
 if (!verbs.length){ verbs = [
   {id:uid(), base:'be', past:'was/were', participle:'been', meaning:'ser/estar', example:'I have been to Canada.', createdAt:now(), nextReview:now(), interval:0, ease:2.5, repetitions:0, lastResult:'unrated'},
   {id:uid(), base:'go', past:'went', participle:'gone', meaning:'ir', example:'They have gone home.', createdAt:now(), nextReview:now(), interval:0, ease:2.5, repetitions:0, lastResult:'unrated'},
-]; store.write(KEY_R, verbs); }
+]; window.store.write(KEY_R, verbs); }
 if (!idioms.length){ idioms = [
   {id:uid(), phrase:'break the ice', meaning:'quebrar o gelo', example:'He told a joke to break the ice.', createdAt:now(), nextReview:now(), interval:0, ease:2.5, repetitions:0, lastResult:'unrated'},
-]; store.write(KEY_I, idioms); }
+]; window.store.write(KEY_I, idioms); }
 
 /* ================= Navigation ================= */
 const nav = document.getElementById('nav');
@@ -452,13 +449,11 @@ nav.addEventListener('click', e=>{
   if(b.dataset.view!=='games' && window.gameInt){ clearInterval(gameInt); gameInt=null; }
   show(b.dataset.view);
 });
-show('study');
 
 /* ================= Study (unificado) ================= */
 let pool=[], index=0, revealed=false;
-let mode=document.getElementById('study-mode').value;
-let chunkSize=document.getElementById('session-size').value;
-let fontScale=Number(document.getElementById('font-scale').value);
+let mode; // CORREÇÃO: Declarar 'mode' aqui, mas inicializar dentro de 'renderStudy'.
+let chunkSize, fontScale;
 const elDue=$('due-count'); const elCard=$('study-card'); const elInner=$('study-inner'); const elEmpty=$('study-empty');
 const elTerm=$('study-term'); const elIpa=$('study-ipa'); const elHidden=$('study-hidden'); const elRev=$('study-revealed');
 const elTrans=$('study-translation'); const elDef=$('study-definition'); const elExtra=$('study-extra'); const elTags=$('study-tags'); const elBar=$('progress-bar'); const elVerbForms=$('study-verb-forms');
@@ -504,7 +499,6 @@ function buildDue(){
   else if(mode==='verbs'){ source = verbs.slice(); }
   else { source = idioms.slice(); }
 
-  // padroniza campos que podem faltar (import antigo)
   source = source.map(x=>({...x,
     nextReview: x.nextReview ?? now(),
     interval: x.interval ?? 0, ease: x.ease ?? 2.5, repetitions: x.repetitions ?? 0,
@@ -545,12 +539,12 @@ function updateStudyUI(){
       (cur.tags||[]).forEach(t=>{ const s=document.createElement('span'); s.className='chip'; s.textContent=t; elTags.appendChild(s); });
     }
   } else if(mode==='verbs'){
-    elTerm.textContent=cur.base; elIpa.textContent=''; // IPA opcional
+    elTerm.textContent=cur.base; elIpa.textContent='';
     if(!revealed){ elHidden.classList.remove('hidden'); elRev.classList.add('hidden'); }
     else {
       elHidden.classList.add('hidden'); elRev.classList.remove('hidden');
       elTrans.innerHTML = cur.meaning? '<b>Significado:</b> '+cur.meaning : '';
-      elDef.innerHTML = ''; // sem definição textual
+      elDef.innerHTML = '';
       elExtra.textContent = cur.example||'';
       elTags.innerHTML='';
       elVerbForms.classList.remove('hidden');
@@ -575,13 +569,20 @@ function updateStudyUI(){
 function rate(r){
   let cur=pool[index];
   const updated = schedule(cur, r);
-  if(mode==='vocab'){ items=items.map(i=> i.id===updated.id?updated:i); store.write(KEY_V, items); }
-  else if(mode==='verbs'){ verbs=verbs.map(i=> i.id===updated.id?updated:i); store.write(KEY_R, verbs); }
-  else { idioms=idioms.map(i=> i.id===updated.id?updated:i); store.write(KEY_I, idioms); }
+  if(mode==='vocab'){ items=items.map(i=> i.id===updated.id?updated:i); window.store.write(KEY_V, items); }
+  else if(mode==='verbs'){ verbs=verbs.map(i=> i.id===updated.id?updated:i); window.store.write(KEY_R, verbs); }
+  else { idioms=idioms.map(i=> i.id===updated.id?updated:i); window.store.write(KEY_I, idioms); }
   revealed=false; nextStudy();
 }
 function nextStudy(){ index = Math.min(pool.length-1, index+1); updateStudyUI(); }
-function renderStudy(){ buildDue(); updateStudyUI(); }
+function renderStudy(){
+  // CORREÇÃO: Inicializar/atualizar estas variáveis sempre que a tela de estudo for renderizada.
+  mode = $('study-mode').value;
+  chunkSize = $('session-size').value;
+  fontScale = Number($('font-scale').value);
+  buildDue();
+  updateStudyUI();
+}
 
 /* ================= Bank (Vocabulário) ================= */
 function $(id){ return document.getElementById(id); }
@@ -597,7 +598,7 @@ $('btn-save').addEventListener('click', ()=>{
     tags: $('f-tags').value.split(',').map(s=>s.trim().toLowerCase()).filter(Boolean),
     createdAt: now(), nextReview: now(), interval:0, ease:2.5, repetitions:0, lastResult:'unrated'
   };
-  items=[obj, ...items]; store.write(KEY_V, items);
+  items=[obj, ...items]; window.store.write(KEY_V, items);
   $('f-term').value=$('f-translation').value=$('f-definition').value=$('f-example').value=$('f-ipa').value=$('f-tags').value='';
   renderBank(); renderStudy();
 });
@@ -628,7 +629,7 @@ $('q').addEventListener('input', renderBank); $('tag').addEventListener('change'
 $('table-bank').addEventListener('click', e=>{
   const b=e.target.closest('button'); if(!b) return; const id=b.dataset.id; const it=items.find(x=>x.id===id); if(!it) return;
   if(b.dataset.act==='listen'){ speak(it.term); }
-  else if(b.dataset.act==='del'){ if(!confirm('Confirmar exclusão?')) return; items=items.filter(x=>x.id!==id); store.write(KEY_V, items); renderBank(); renderStudy(); }
+  else if(b.dataset.act==='del'){ if(!confirm('Confirmar exclusão?')) return; items=items.filter(x=>x.id!==id); window.store.write(KEY_V, items); renderBank(); renderStudy(); }
 });
 
 /* ================= Verbs (tabela + add) ================= */
@@ -642,13 +643,13 @@ $('btn-add-verb').addEventListener('click', ()=>{
   const v={id:uid(), base:b, past:p, participle:t, meaning:$('v-meaning').value.trim()||undefined, example:$('v-example').value.trim()||undefined,
     createdAt:now(), nextReview:now(), interval:0, ease:2.5, repetitions:0, lastResult:'unrated'
   };
-  verbs=[v, ...verbs]; store.write(KEY_R, verbs);
+  verbs=[v, ...verbs]; window.store.write(KEY_R, verbs);
   $('v-base').value=$('v-past').value=$('v-part').value=$('v-meaning').value=$('v-example').value='';
   renderVerbsTable(); renderStudy();
 });
 document.getElementById('table-verbs').addEventListener('click', e=>{
   const b=e.target.closest('button[data-id]'); if(!b) return; const id=b.dataset.id;
-  verbs=verbs.filter(v=>v.id!==id); store.write(KEY_R, verbs); renderVerbsTable(); renderStudy();
+  verbs=verbs.filter(v=>v.id!==id); window.store.write(KEY_R, verbs); renderVerbsTable(); renderStudy();
 });
 function renderVerbsTable(){
   const tb=$('table-verbs').querySelector('tbody'); tb.innerHTML='';
@@ -666,13 +667,13 @@ $('btn-add-idiom').addEventListener('click', ()=>{
   const obj={id:uid(), phrase, meaning, example:example||undefined,
     createdAt:now(), nextReview:now(), interval:0, ease:2.5, repetitions:0, lastResult:'unrated'
   };
-  idioms=[obj, ...idioms]; store.write(KEY_I, idioms);
+  idioms=[obj, ...idioms]; window.store.write(KEY_I, idioms);
   $('i-phrase').value=$('i-meaning').value=$('i-example').value='';
   renderIdiomsTable(); renderStudy();
 });
 document.getElementById('table-idioms').addEventListener('click', e=>{
   const b=e.target.closest('button[data-id]'); if(!b) return; const id=b.dataset.id;
-  idioms=idioms.filter(v=>v.id!==id); store.write(KEY_I, idioms); renderIdiomsTable(); renderStudy();
+  idioms=idioms.filter(v=>v.id!==id); window.store.write(KEY_I, idioms); renderIdiomsTable(); renderStudy();
 });
 function renderIdiomsTable(){
   const tb=$('table-idioms').querySelector('tbody'); tb.innerHTML='';
@@ -715,14 +716,14 @@ function hearts(n){ return '❤'.repeat(n); }
 function updateGameStatus(){ const done=game.matched.size, total=game.pairs.length; const time=`Tempo: ${Math.max(0, game.timeLeft)}s`; const lives=`Vidas: ${hearts(game.lives)} (${game.lives})`; $('g-status').textContent = total ? `${time} · ${lives} · Certos: ${done}/${total} · Erros: ${game.mistakes}${game.tag? ' · Tag: '+game.tag:''}` : ''; }
 function tick(){ game.timeLeft-=1; updateGameStatus(); if(game.timeLeft<=0){ finishGame('timeout'); } }
 function renderScores(){ const tb=document.querySelector('#g-score tbody'); if(!tb) return; tb.innerHTML=''; const rows=scores.slice(0,20).map(s=>{ const d=new Date(s.date); const date=d.toLocaleDateString()+ ' ' + d.toLocaleTimeString().slice(0,5); return `<tr><td>${date}</td><td>${s.tag||'—'}</td><td>${s.pairs}</td><td>${s.time}s</td><td>${s.errors}</td><td>${s.livesStart}</td><td>${s.result}</td></tr>`; }); tb.innerHTML = rows.join(''); }
-function finishGame(result){ if(game.finished) return; game.finished=true; clearInterval(gameInt); gameInt=null; document.querySelectorAll('#g-col-en .tile, #g-col-pt .tile').forEach(el=> el.style.pointerEvents='none'); const secsUsed = game.duration - Math.max(0, game.timeLeft); const record={ id:uid(), date:new Date().toISOString(), tag: game.tag||'', pairs: game.pairs.length, time: secsUsed, errors: game.mistakes, livesStart: Number($('g-lives')?.value||game.lives), result }; scores=[record, ...scores].slice(0,500); store.write(KEY_SCORES, scores); renderScores(); const msg = result==='win' ? `✅ Concluído! Tempo: ${secsUsed}s · Erros: ${game.mistakes}` : (result==='timeout' ? `⏰ Tempo esgotado. Pares: ${game.matched.size}/${game.pairs.length}` : `💔 Sem vidas. Pares: ${game.matched.size}/${game.pairs.length}`); $('g-status').innerHTML = msg + (game.tag? ` · Tag: ${game.tag}` : ''); }
-function renderGame(){ buildTagOptions(); renderScores(); if(!$('g-start')) return; $('g-start').onclick=startGame; $('g-reset').onclick=startGame; const btnClear=$('g-clear'); if(btnClear){ btnClear.onclick=()=>{ if(!confirm('Limpar o placar?')) return; scores=[]; store.write(KEY_SCORES, scores); renderScores(); }; } if(!game.pairs.length){ const avail=items.filter(i=>i.translation).length; $('g-status').textContent = avail>=2? 'Escolha pares, tag, duração e clique Iniciar.' : 'Adicione pelo menos 2 palavras com tradução no Banco.'; }}
+function finishGame(result){ if(game.finished) return; game.finished=true; clearInterval(gameInt); gameInt=null; document.querySelectorAll('#g-col-en .tile, #g-col-pt .tile').forEach(el=> el.style.pointerEvents='none'); const secsUsed = game.duration - Math.max(0, game.timeLeft); const record={ id:uid(), date:new Date().toISOString(), tag: game.tag||'', pairs: game.pairs.length, time: secsUsed, errors: game.mistakes, livesStart: Number($('g-lives')?.value||game.lives), result }; scores=[record, ...scores].slice(0,500); window.store.write(KEY_SCORES, scores); renderScores(); const msg = result==='win' ? `✅ Concluído! Tempo: ${secsUsed}s · Erros: ${game.mistakes}` : (result==='timeout' ? `⏰ Tempo esgotado. Pares: ${game.matched.size}/${game.pairs.length}` : `💔 Sem vidas. Pares: ${game.matched.size}/${game.pairs.length}`); $('g-status').innerHTML = msg + (game.tag? ` · Tag: ${game.tag}` : ''); }
+function renderGame(){ buildTagOptions(); renderScores(); if(!$('g-start')) return; $('g-start').onclick=startGame; $('g-reset').onclick=startGame; const btnClear=$('g-clear'); if(btnClear){ btnClear.onclick=()=>{ if(!confirm('Limpar o placar?')) return; scores=[]; window.store.write(KEY_SCORES, scores); renderScores(); }; } if(!game.pairs.length){ const avail=items.filter(i=>i.translation).length; $('g-status').textContent = avail>=2? 'Escolha pares, tag, duração e clique Iniciar.' : 'Adicione pelo menos 2 palavras com tradução no Banco.'; }}
 
 /* ================= Import/Export ================= */
 $('imp-vocab').addEventListener('change', e=>{
   const f=e.target.files?.[0]; if(!f) return;
   const r=new FileReader();
-  r.onload=()=>{ const arr=csvToVocab(String(r.result||'')); items=[...arr, ...items]; store.write(KEY_V, items); renderBank(); renderStudy(); };
+  r.onload=()=>{ const arr=csvToVocab(String(r.result||'')); items=[...arr, ...items]; window.store.write(KEY_V, items); renderBank(); renderStudy(); };
   r.readAsText(f);
 });
 $('imp-verbs').addEventListener('change', e=>{
@@ -731,7 +732,7 @@ $('imp-verbs').addEventListener('change', e=>{
   r.onload=()=>{ try{
     const data=JSON.parse(String(r.result||''))||[];
     const arr=data.map(d=>({id:uid(), base:d.base, past:d.past, participle:d.participle, meaning:d.meaning, example:d.example, createdAt:now(), nextReview:now(), interval:0, ease:2.5, repetitions:0, lastResult:'unrated'}));
-    verbs=[...arr, ...verbs]; store.write(KEY_R, verbs); renderVerbsTable(); renderStudy();
+    verbs=[...arr, ...verbs]; window.store.write(KEY_R, verbs); renderVerbsTable(); renderStudy();
   }catch{ alert('JSON inválido'); } };
   r.readAsText(f);
 });
@@ -741,7 +742,7 @@ $('imp-idioms').addEventListener('change', e=>{
   r.onload=()=>{ try{
     const data=JSON.parse(String(r.result||''))||[];
     const arr=data.map(d=>({id:uid(), phrase:d.phrase, meaning:d.meaning, example:d.example, createdAt:now(), nextReview:now(), interval:0, ease:2.5, repetitions:0, lastResult:'unrated'}));
-    idioms=[...arr, ...idioms]; store.write(KEY_I, idioms); renderIdiomsTable(); renderStudy();
+    idioms=[...arr, ...idioms]; window.store.write(KEY_I, idioms); renderIdiomsTable(); renderStudy();
   }catch{ alert('JSON inválido'); } };
   r.readAsText(f);
 });
@@ -751,19 +752,20 @@ $('exp-idioms').addEventListener('click', ()=> download('idioms_export.json', JS
 
 $('seed-vocab').addEventListener('click', ()=>{
   const seeds=[{ term:'evidence', translation:'evidência', definition:'facts or information indicating truth', example:'We used strong evidence.', tags:['academia'] },{ term:'framework', translation:'estrutura; arcabouço', definition:'basic structure underlying a system', example:'We propose a CTS framework.', tags:['academia'] }].map(s=>({ id:uid(), term:s.term, translation:s.translation, definition:s.definition, example:s.example, ipa:s.ipa||'', tags:s.tags||[], createdAt:now(), nextReview:now(), interval:0, ease:2.5, repetitions:0, lastResult:'unrated' }));
-  items=[...seeds, ...items]; store.write(KEY_V, items); renderBank(); renderStudy();
+  items=[...seeds, ...items]; window.store.write(KEY_V, items); renderBank(); renderStudy();
 });
 $('seed-verbs').addEventListener('click', ()=>{
-  const seeds=[{base:'take',past:'took',participle:'taken',meaning:'pegar/levar',example:'He has taken notes.'},{base:'write',past:'wrote',participle:'written',meaning:'escrever',example:'She has written a paper.'}].map(v=>({id:uid(),...v, createdAt:now(), nextReview:now(), interval:0, ease:2.5, repetitions:0, lastResult:'unrated'}));
-  verbs=[...seeds,...verbs]; store.write(KEY_R, verbs); renderVerbsTable(); renderStudy();
+  const seeds=[{base:'take',past:'took',participle:'taken',meaning:'pegar/levar',example:'He has taken notes.'},{base:'write',past:'wrote',participle:'written',meaning:'escrever',example:'She has written a paper.'}].map(v=>({id:uid(),...v, createdAt:now(), nextReview:now(), interval:0, ease:2.s5, repetitions:0, lastResult:'unrated'}));
+  verbs=[...seeds,...verbs]; window.store.write(KEY_R, verbs); renderVerbsTable(); renderStudy();
 });
 $('seed-idioms').addEventListener('click', ()=>{
   const seeds=[{phrase:'rule of thumb',meaning:'regra prática',example:'A rule of thumb is to review daily.'},{phrase:'sleep on it',meaning:'pensar melhor',example:'Sleep on it before deciding.'}].map(i=>({id:uid(),...i, createdAt:now(), nextReview:now(), interval:0, ease:2.5, repetitions:0, lastResult:'unrated'}));
-  idioms=[...seeds,...idioms]; store.write(KEY_I, idioms); renderIdiomsTable(); renderStudy();
+  idioms=[...seeds,...idioms]; window.store.write(KEY_I, idioms); renderIdiomsTable(); renderStudy();
 });
 
 // Inicializações de tabelas e estudo
-renderBank(); renderVerbsTable(); renderIdiomsTable(); renderStudy();
+renderBank(); renderVerbsTable(); renderIdiomsTable();
+show('study');
 </script>
 
 <!-- ================= Firebase (Auth + Firestore + persistência) ================= -->
@@ -903,8 +905,8 @@ renderBank(); renderVerbsTable(); renderIdiomsTable(); renderStudy();
   // Funções globais p/ aplicar coleções (usadas acima)
 
   window.__applyVocab  = (arr)=>{
-    items = arr;                 // atualiza as variáveis usadas pelo app
-    oldWrite(KEY_V, arr);        // espelha no localStorage (sem subir p/ a nuvem)
+    items = arr;               // atualiza as variáveis usadas pelo app
+    oldWrite(KEY_V, arr);      // espelha no localStorage (sem subir p/ a nuvem)
     renderBank(); renderStudy(); renderGame();
   };
   window.__applyVerbs  = (arr)=>{
